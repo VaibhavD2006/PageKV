@@ -230,7 +230,3 @@ pagekv/
 ## Status
 
 All three phases implemented. GPU benchmark numbers pending — see `docs/prd.md` for success metrics (≥30% memory reduction, ≤5% accuracy drop at 32K+ tokens).
-
-## License
-
-MIT

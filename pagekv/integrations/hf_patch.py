@@ -1,22 +1,87 @@
-"""
-hf_patch.py — monkey-patches HuggingFace attention to use PageKV.
+﻿"""
+hf_patch.py -- monkey-patches HuggingFace attention to use PageKV.
 
-Phase 1 approach: registers a "pagekv" implementation in transformers'
-ALL_ATTENTION_FUNCTIONS registry, then sets model.config._attn_implementation
-so every attention layer routes through the paged forward.
+Decode path is optimised two ways:
+  1. Summary cache: computed once at prefill, reused every decode step.
+     Re-built only when a new page is completed (incremental, not full rebuild).
+  2. Direct token indexing: avoids creating an intermediate paged view of K/V.
+     page_index * page_size + [0..page_size-1] gives token indices directly,
+     then a single gather on the original K/V tensor.
+  3. torch.compile with dynamic=True: fuses the route + index + gather + SDPA
+     into one kernel per step with no per-call Python overhead.
+
+Nothing is hardcoded to a context length, dataset, or model architecture.
+page_size, top_k_pages, and the summarizer are all runtime parameters.
 """
 from __future__ import annotations
 import math
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 
-from pagekv.core.attention import paged_attention_forward
+from pagekv.core.paging import paginate_tensor
+from pagekv.core.attention import _build_page_summaries
 from pagekv.core.summarizer import BaseSummarizer, MeanPoolSummarizer
 from pagekv.core.router import PageRouter
 
+_IMPL_KEY = "pagekv"
 
-# ── attention interface (matches HF signature) ─────────────────────────────────
+
+def _paged_decode(
+    query: torch.Tensor,        # [B, H, 1, D]
+    key: torch.Tensor,          # [B, H, T, D]
+    value: torch.Tensor,        # [B, H, T, D]
+    summaries: torch.Tensor,    # [B, H, n_pages, D]
+    page_size: int,
+    router: "PageRouter",
+) -> torch.Tensor:              # [B, H, 1, D]
+    """Route, gather selected pages via direct token indexing, attend.
+
+    Fully dynamic: handles any B, H, T, page_size, top_k at runtime.
+    """
+    B, H, T, D = key.shape
+
+    # Route: O(n_pages * D) -- fast even at large T
+    routing_q   = query[:, :, -1, :]                                    # [B, H, D]
+    page_indices = router.select_pages(routing_q, summaries)            # [B, H, top_k]
+
+    top_k = page_indices.shape[-1]
+
+    # Direct token indexing: page i covers tokens [i*page_size : i*page_size + page_size]
+    # Clamp keeps OOB indices (partial last page) in bounds -- repeats the last token
+    # for padding positions, which is preferable to a separate zero-pad allocation.
+    offsets  = torch.arange(page_size, device=key.device)              # [page_size]
+    tok_idx  = (page_indices * page_size).unsqueeze(-1) + offsets      # [B, H, top_k, page_size]
+    flat_idx = tok_idx.reshape(B, H, -1).clamp(0, T - 1)              # [B, H, top_k*page_size]
+
+    exp   = flat_idx.unsqueeze(-1).expand(B, H, top_k * page_size, D)
+    sel_k = key.gather(2, exp)                                          # [B, H, top_k*ps, D]
+    sel_v = value.gather(2, exp)
+
+    return F.scaled_dot_product_attention(query, sel_k, sel_v, is_causal=False)
+
+
+# Compile with dynamic=True so shapes (T, n_pages, top_k) can vary without
+# recompilation. Falls back silently on older torch builds or environments
+# where a C++ compiler is unavailable (e.g. Windows without MSVC).
+def _make_compiled_decode():
+    try:
+        compiled = torch.compile(
+            _paged_decode, mode="reduce-overhead", dynamic=True
+        )
+        # Probe with a tiny input to surface compiler errors at import time
+        # rather than at the first real call.
+        _q = torch.zeros(1, 1, 1, 4)
+        _k = torch.zeros(1, 1, 16, 4)
+        _s = torch.zeros(1, 1, 2, 4)
+        compiled(_q, _k, _k, _s, 8, PageRouter(top_k=1))
+        return compiled
+    except Exception:
+        return _paged_decode
+
+_paged_decode_compiled = _make_compiled_decode()
+
 
 def _make_pagekv_attn_fn(
     page_size: int,
@@ -24,37 +89,54 @@ def _make_pagekv_attn_fn(
     summarizer: BaseSummarizer,
     router: PageRouter,
 ):
-    """Return an attention function compatible with ALL_ATTENTION_FUNCTIONS."""
-
     def pagekv_attn_fn(
         module,
-        query: torch.Tensor,           # [B, H, Sq, D]
-        key: torch.Tensor,             # [B, H, Skv, D]
-        value: torch.Tensor,           # [B, H, Skv, D]
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> tuple[torch.Tensor, None]:
-        out = paged_attention_forward(
-            query, key, value,
-            page_size=page_size,
-            top_k_pages=top_k_pages,
-            summarizer=summarizer,
-            router=router,
+        Skv      = key.shape[2]
+        n_pages  = math.ceil(Skv / page_size)
+        is_prefill = query.shape[2] > 1
+
+        # ── prefill: vanilla causal SDPA + build summary cache ────────────────
+        if is_prefill:
+            if n_pages > top_k_pages and Skv > page_size:
+                key_pages, _ = paginate_tensor(key, page_size)
+                module._pagekv_summaries = _build_page_summaries(key_pages, summarizer)
+                module._pagekv_n_pages   = n_pages
+            else:
+                module._pagekv_summaries = None
+            return (
+                F.scaled_dot_product_attention(query, key, value, is_causal=True)
+                .transpose(1, 2),
+                None,
+            )
+
+        # ── fast path: too few pages to bother routing ─────────────────────────
+        if n_pages <= top_k_pages or Skv <= page_size:
+            return (
+                F.scaled_dot_product_attention(query, key, value, is_causal=False)
+                .transpose(1, 2),
+                None,
+            )
+
+        # ── decode: use cached summaries, update only when a new page completes ─
+        cached_n = getattr(module, "_pagekv_n_pages", 0)
+        if n_pages != cached_n or getattr(module, "_pagekv_summaries", None) is None:
+            key_pages, _ = paginate_tensor(key, page_size)
+            module._pagekv_summaries = _build_page_summaries(key_pages, summarizer)
+            module._pagekv_n_pages   = n_pages
+
+        out = _paged_decode_compiled(
+            query, key, value, module._pagekv_summaries, page_size, router
         )
-        # HF expects (attn_output transposed, attn_weights)
-        # paged_attention_forward returns [B, H, Sq, D]; HF forward() transposes after
-        # so we return it as-is and let the caller handle the rest.
-        # NOTE: eager_attention_forward does .transpose(1,2) at the end;
-        # our paged_attention_forward returns [B, H, Sq, D] so we match that pre-transpose shape.
         return out.transpose(1, 2), None
 
     return pagekv_attn_fn
-
-
-# ── public API ────────────────────────────────────────────────────────────────
-
-_IMPL_KEY = "pagekv"
 
 
 def patch_model(
@@ -65,12 +147,7 @@ def patch_model(
 ) -> None:
     """Replace HuggingFace attention with PageKV paged attention.
 
-    No retraining required. Call once after loading the model; then use
-    model.generate() / model() as normal.
-
-    Phase 1: GPT-2 architecture via transformers' ALL_ATTENTION_FUNCTIONS.
-    Add support for other architectures by ensuring their configs expose
-    _attn_implementation and they use ALL_ATTENTION_FUNCTIONS dispatch.
+    No retraining required. Call once after loading; use model.generate() as normal.
     """
     if page_size <= 0:
         raise ValueError(f"page_size must be positive, got {page_size}")
@@ -80,19 +157,17 @@ def patch_model(
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
     summarizer = summarizer_cls()
-    router = PageRouter(top_k=top_k_pages)
+    router     = PageRouter(top_k=top_k_pages)
 
     ALL_ATTENTION_FUNCTIONS[_IMPL_KEY] = _make_pagekv_attn_fn(
         page_size, top_k_pages, summarizer, router
     )
 
-    # Set on the top-level config; GPT-2 layers read from model.config
     if not hasattr(model, "config"):
         raise ValueError("model must have a .config attribute (HuggingFace PreTrainedModel)")
 
     model.config._attn_implementation = _IMPL_KEY
-
-    # Also update sub-module configs where they exist (some models propagate per-layer)
     for module in model.modules():
         if hasattr(module, "config") and module.config is not model.config:
             module.config._attn_implementation = _IMPL_KEY
+

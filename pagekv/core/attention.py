@@ -54,7 +54,10 @@ def paged_attention_forward(
     is_causal = query.shape[-2] > 1  # causal mask needed for prefill only
 
     # ── fast path ─────────────────────────────────────────────────────────────
-    if top_k_pages >= n_pages or Skv <= page_size:
+    # Prefill (Sq > 1): paging is incorrect here — gathered pages would need
+    # per-token causal masking to be safe, which isn't worth the complexity.
+    # Paging only helps during decode (Sq == 1) where Skv is large.
+    if top_k_pages >= n_pages or Skv <= page_size or query.shape[-2] > 1:
         return F.scaled_dot_product_attention(
             query, key, value,
             scale=scale,
@@ -69,6 +72,19 @@ def paged_attention_forward(
 
     routing_query = query[:, :, -1, :]  # [B, H, D] — last token routes
     page_indices = router.select_pages(routing_query, page_summaries)  # [B, H, top_k]
+
+    # Force-include the last page: mean-pool scores by semantic similarity, not recency.
+    # For autoregressive continuation the most recent tokens are almost always needed.
+    # Replace slot 0 (earliest page) when last page was not already selected.
+    last_idx = n_pages - 1
+    has_last = (page_indices == last_idx).any(dim=-1, keepdim=True)  # [B, H, 1]
+    page_indices = page_indices.clone()
+    page_indices[..., 0] = torch.where(
+        has_last.squeeze(-1),
+        page_indices[..., 0],
+        page_indices.new_full(page_indices[..., 0].shape, last_idx),
+    )
+    page_indices = page_indices.sort(dim=-1).values
 
     top_k = page_indices.shape[-1]
     # gather: expand indices to [B, H, top_k, page_size, D]
