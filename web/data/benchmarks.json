@@ -1,0 +1,15 @@
+{
+  "_comment": "Drop real benchmark data here once GPU runs are complete. See docs/prd.md for target metrics. Shape: results[] entries have ctx_len, memory_vanilla_gb, memory_pagekv_gb, accuracy_vanilla, accuracy_pagekv, latency_vanilla_ms, latency_pagekv_ms.",
+  "meta": {
+    "status": "pending",
+    "model": null,
+    "device": null,
+    "date": null
+  },
+  "config": {
+    "page_size": 128,
+    "top_k_pages": 4,
+    "summarizer": "MeanPoolSummarizer"
+  },
+  "results": []
+}

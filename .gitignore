@@ -6,3 +6,11 @@ build/
 .env
 pagekv/benchmarks/output/*.png
 pagekv/benchmarks/output/*.csv
+
+# Next.js landing page
+web/node_modules/
+web/.next/
+web/out/
+
+# Playwright test artifacts
+.playwright-mcp/
