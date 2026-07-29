@@ -11,6 +11,7 @@ from pagekv.core.summarizer import (
     train_summarizer,
 )
 from pagekv.memory.tiering import PageCache
+from pagekv.index import Index, SearchResult
 
 __all__ = [
     "patch_model",
@@ -22,4 +23,6 @@ __all__ = [
     "LearnedSummarizer",
     "train_summarizer",
     "PageCache",
+    "Index",
+    "SearchResult",
 ]
