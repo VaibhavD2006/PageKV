@@ -4,24 +4,23 @@
     "note": "GPU benchmarks pending (no GPU access). CPU timings below are real measurements from the attention kernel microbench."
   },
   "cpu_config": {
-    "page_size": 64,
-    "top_k": 8,
+    "page_size": 128,
+    "top_k": 4,
     "heads": 12,
     "head_dim": 64,
     "batch": 1,
     "device": "CPU (PyTorch SDPA)",
     "warmup_runs": 3,
-    "timed_runs": 10,
-    "note": "Cached path = summaries pre-built. Uncached = paging + summarization per step."
+    "timed_runs": 15,
+    "note": "Cached = summaries pre-built (steady-state decode). page_size=128 top_k=4 are the PageKV defaults."
   },
   "cpu_timing": [
-    { "ctx": 256,   "vanilla_ms": 0.336, "uncached_ms": 0.336,  "cached_ms": 0.336,  "speedup": 1.00, "pct_read": 100, "note": "fast-path" },
-    { "ctx": 512,   "vanilla_ms": 0.236, "uncached_ms": 0.236,  "cached_ms": 0.236,  "speedup": 1.00, "pct_read": 100, "note": "fast-path" },
-    { "ctx": 1024,  "vanilla_ms": 1.442, "uncached_ms": 3.656,  "cached_ms": 5.586,  "speedup": 0.26, "pct_read": 50,  "note": "" },
-    { "ctx": 2048,  "vanilla_ms": 1.837, "uncached_ms": 8.355,  "cached_ms": 2.826,  "speedup": 0.65, "pct_read": 25,  "note": "" },
-    { "ctx": 4096,  "vanilla_ms": 1.723, "uncached_ms": 10.481, "cached_ms": 6.996,  "speedup": 0.25, "pct_read": 12,  "note": "" },
-    { "ctx": 8192,  "vanilla_ms": 5.360, "uncached_ms": 8.912,  "cached_ms": 2.121,  "speedup": 2.53, "pct_read": 6,   "note": "crossover" },
-    { "ctx": 16384, "vanilla_ms": 6.616, "uncached_ms": 14.720, "cached_ms": 8.552,  "speedup": 0.77, "pct_read": 3,   "note": "" }
+    { "ctx": 1024,  "vanilla_ms": 0.225, "cached_ms": 1.646, "speedup": 0.14, "pct_read": 50,  "note": "fast-path-adjacent" },
+    { "ctx": 2048,  "vanilla_ms": 0.626, "cached_ms": 1.689, "speedup": 0.37, "pct_read": 25,  "note": "" },
+    { "ctx": 4096,  "vanilla_ms": 1.267, "cached_ms": 1.716, "speedup": 0.74, "pct_read": 12,  "note": "" },
+    { "ctx": 8192,  "vanilla_ms": 2.523, "cached_ms": 1.567, "speedup": 1.61, "pct_read": 6,   "note": "crossover" },
+    { "ctx": 16384, "vanilla_ms": 4.458, "cached_ms": 1.547, "speedup": 2.88, "pct_read": 3,   "note": "" },
+    { "ctx": 32768, "vanilla_ms": 9.226, "cached_ms": 1.249, "speedup": 7.39, "pct_read": 2,   "note": "" }
   ],
   "results": []
 }

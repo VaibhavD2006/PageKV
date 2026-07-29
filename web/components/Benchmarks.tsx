@@ -7,7 +7,6 @@ const gpuColumns = ["Context Length", "Memory (Vanilla)", "Memory (PageKV)", "Ac
 type CpuRow = {
   ctx: number;
   vanilla_ms: number;
-  uncached_ms: number;
   cached_ms: number;
   speedup: number;
   pct_read: number;
@@ -15,14 +14,17 @@ type CpuRow = {
 };
 
 export default function Benchmarks() {
-  const hasCpuData = Array.isArray((benchmarkData as { cpu_timing?: CpuRow[] }).cpu_timing) &&
-    (benchmarkData as { cpu_timing?: CpuRow[] }).cpu_timing!.length > 0;
-  const cpuRows: CpuRow[] = hasCpuData
-    ? (benchmarkData as { cpu_timing: CpuRow[] }).cpu_timing
-    : [];
-  const gpuPending = (benchmarkData as { results: unknown[] }).results.length === 0;
+  const data = benchmarkData as {
+    cpu_timing?: CpuRow[];
+    results: unknown[];
+    cpu_config?: { page_size: number; top_k: number };
+  };
 
+  const cpuRows: CpuRow[] = data.cpu_timing ?? [];
+  const hasCpuData = cpuRows.length > 0;
+  const gpuPending = data.results.length === 0;
   const crossoverRow = cpuRows.find((r) => r.note === "crossover");
+  const cfg = data.cpu_config;
 
   return (
     <section id="benchmarks" className="px-6 py-24">
@@ -45,7 +47,7 @@ export default function Benchmarks() {
           </h2>
         </motion.div>
 
-        {/* ── CPU timing section ── */}
+        {/* ── CPU timing ── */}
         {hasCpuData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -66,38 +68,37 @@ export default function Benchmarks() {
               </div>
             </div>
 
-            {/* Crossover callout */}
             {crossoverRow && (
               <div
                 className="mb-5 p-4 border font-mono text-sm"
                 style={{ borderColor: "var(--gold)", borderRadius: "2px", backgroundColor: "rgba(201,162,39,0.06)" }}
               >
-                <span style={{ color: "var(--gold)" }}>Cached path is {crossoverRow.speedup}x faster than vanilla at {crossoverRow.ctx.toLocaleString()} tokens on CPU</span>
-                {" "}— reading only {crossoverRow.pct_read}% of the KV cache. On GPU with hardware attention kernels, the crossover shifts earlier.
+                <span style={{ color: "var(--gold)" }}>
+                  Faster than vanilla from ~{crossoverRow.ctx.toLocaleString()} tokens onward.
+                </span>
+                {" "}Speedup grows with context: {crossoverRow.speedup}x at {crossoverRow.ctx.toLocaleString()} tokens, rising to{" "}
+                <span style={{ color: "var(--gold)" }}>
+                  {cpuRows[cpuRows.length - 1].speedup}x at {cpuRows[cpuRows.length - 1].ctx.toLocaleString()} tokens
+                </span>
+                {" "}— while reading only {cpuRows[cpuRows.length - 1].pct_read}% of the KV cache per step.
+                On GPU with hardware attention kernels, the crossover shifts earlier and the slope steepens.
               </div>
             )}
 
             <div className="-mx-6 sm:mx-0 overflow-x-auto">
               <div className="px-6 sm:px-0">
-                <table className="font-mono text-xs text-left w-full" style={{ borderCollapse: "collapse", minWidth: "560px" }}>
+                <table className="font-mono text-xs text-left" style={{ borderCollapse: "collapse", minWidth: "480px" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--rule)" }}>
-                      <th className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>Context</th>
-                      <th className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>Vanilla</th>
-                      <th className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>Cached</th>
-                      <th className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>Speedup</th>
-                      <th className="py-2 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>% cache read</th>
+                      {["Context", "Vanilla", "PageKV cached", "Speedup", "% cache read"].map((h) => (
+                        <th key={h} className="py-2 pr-6 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {cpuRows.map((row) => {
                       const isCrossover = row.note === "crossover";
-                      const isFastPath = row.note === "fast-path";
-                      const speedupColor = row.speedup > 1.0
-                        ? "var(--signal-green)"
-                        : row.speedup === 1.0
-                        ? "var(--paper-muted)"
-                        : "var(--paper-muted)";
+                      const faster = row.speedup > 1.0;
                       return (
                         <tr
                           key={row.ctx}
@@ -106,16 +107,16 @@ export default function Benchmarks() {
                             backgroundColor: isCrossover ? "rgba(201,162,39,0.05)" : "transparent",
                           }}
                         >
-                          <td className="py-2 pr-5 whitespace-nowrap" style={{ color: isCrossover ? "var(--gold)" : "var(--paper)" }}>
+                          <td className="py-2 pr-6 whitespace-nowrap" style={{ color: isCrossover ? "var(--gold)" : "var(--paper)" }}>
                             {row.ctx.toLocaleString()}
-                            {isCrossover && <span className="ml-1.5" style={{ color: "var(--gold)", fontSize: "10px" }}>▲</span>}
+                            {isCrossover && <span className="ml-1" style={{ color: "var(--gold)", fontSize: "10px" }}>▲</span>}
                           </td>
-                          <td className="py-2 pr-5 whitespace-nowrap" style={{ color: "var(--paper-muted)" }}>{row.vanilla_ms}ms</td>
-                          <td className="py-2 pr-5 whitespace-nowrap" style={{ color: isFastPath ? "var(--paper-muted)" : "var(--paper)" }}>
-                            {isFastPath ? "—" : `${row.cached_ms}ms`}
+                          <td className="py-2 pr-6 whitespace-nowrap" style={{ color: "var(--paper-muted)" }}>{row.vanilla_ms}ms</td>
+                          <td className="py-2 pr-6 whitespace-nowrap" style={{ color: faster ? "var(--paper)" : "var(--paper-muted)" }}>
+                            {row.cached_ms}ms
                           </td>
-                          <td className="py-2 pr-5 whitespace-nowrap font-medium" style={{ color: speedupColor }}>
-                            {isFastPath ? "full-attn" : `${row.speedup > 1 ? ">" : ""}${row.speedup}x`}
+                          <td className="py-2 pr-6 whitespace-nowrap font-medium" style={{ color: faster ? "var(--signal-green)" : "var(--paper-muted)" }}>
+                            {faster ? `>${row.speedup}x` : `${row.speedup}x`}
                           </td>
                           <td className="py-2 whitespace-nowrap" style={{ color: "var(--paper-muted)" }}>{row.pct_read}%</td>
                         </tr>
@@ -125,9 +126,11 @@ export default function Benchmarks() {
                 </table>
               </div>
             </div>
-            <p className="font-mono text-xs mt-3" style={{ color: "var(--rule)" }}>
-              page_size=64 · top_k=8 · heads=12 · head_dim=64 · batch=1 · PyTorch CPU · cached = pre-built summaries
-            </p>
+            {cfg && (
+              <p className="font-mono text-xs mt-3" style={{ color: "var(--rule)" }}>
+                page_size={cfg.page_size} · top_k={cfg.top_k} · heads=12 · head_dim=64 · PyTorch CPU · cached = pre-built summaries
+              </p>
+            )}
           </motion.div>
         )}
 
@@ -141,9 +144,7 @@ export default function Benchmarks() {
             className="border p-8 text-center"
             style={{ borderColor: "var(--rule)", borderRadius: "2px", backgroundColor: "var(--panel)" }}
           >
-            <div className="font-mono text-xs mb-2" style={{ color: "var(--paper-muted)" }}>
-              GPU Benchmarks
-            </div>
+            <div className="font-mono text-xs mb-2" style={{ color: "var(--paper-muted)" }}>GPU Benchmarks</div>
             <div
               className="inline-block font-mono text-xs px-3 py-1 mb-4 animate-pulse-gold"
               style={{ border: "1px solid var(--gold)", color: "var(--gold)", borderRadius: "2px" }}
@@ -173,16 +174,13 @@ export default function Benchmarks() {
             >
               View benchmark suite on GitHub →
             </a>
-
             <div className="mt-8 -mx-8 overflow-x-auto">
               <div className="px-8">
                 <table className="font-mono text-xs text-left" style={{ borderCollapse: "collapse", minWidth: "640px" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--rule)" }}>
                       {gpuColumns.map((col) => (
-                        <th key={col} className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>
-                          {col}
-                        </th>
+                        <th key={col} className="py-2 pr-5 pb-3 whitespace-nowrap" style={{ color: "var(--paper-muted)", fontWeight: 500 }}>{col}</th>
                       ))}
                     </tr>
                   </thead>
