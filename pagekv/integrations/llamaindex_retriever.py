@@ -13,7 +13,7 @@ def _lazy_llama():
     except ImportError as exc:
         raise ImportError(
             "LlamaIndex integration requires llama-index-core. "
-            "Install with: pip install pagekv"
+            "Install with: pip install pagekv[llamaindex]"
         ) from exc
 
 

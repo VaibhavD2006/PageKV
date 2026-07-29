@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pagekv"
 version = "0.3.0"
 description = "Page-local compact key summaries for efficient long-context LLM decoding"
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["llm", "kv-cache", "attention", "long-context", "inference", "transformers"]
@@ -26,17 +26,17 @@ dependencies = [
     "matplotlib",
     "sentence-transformers>=2.2",
     "langchain-core>=0.1",
-    "llama-index-core>=0.10",
 ]
 
 [project.optional-dependencies]
 dev        = ["pytest", "pytest-cov"]
 demo       = ["gradio>=4.0"]
 vllm       = ["vllm>=0.4.0"]
+llamaindex = ["llama-index-core>=0.10"]
 
 [project.urls]
-Homepage   = "https://github.com/dandybee06/pagekv"
-Issues     = "https://github.com/dandybee06/pagekv/issues"
+Homepage   = "https://github.com/VaibhavD2006/PageKV"
+Issues     = "https://github.com/VaibhavD2006/PageKV/issues"
 
 [project.scripts]
 pagekv-bench = "pagekv.benchmarks.run_all:main"

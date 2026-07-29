@@ -153,7 +153,7 @@ retriever = PageKVRetriever.from_index(index, embed_fn, top_k=5)`,
     title: "LlamaIndex retriever",
     description:
       "Use PageKVNodeRetriever inside any LlamaIndex query engine. It returns NodeWithScore objects compatible with the full LlamaIndex ecosystem.",
-    install: null,
+    install: "pip install pagekv[llamaindex]",
     blocks: [
       {
         lang: "python",
@@ -217,9 +217,14 @@ export default function Docs() {
                 >
                   {section.title}
                 </h3>
-                <p className="text-sm" style={{ color: "var(--paper-muted)" }}>
+                <p className="text-sm mb-3" style={{ color: "var(--paper-muted)" }}>
                   {section.description}
                 </p>
+                {section.install && (
+                  <div className="inline-block">
+                    <CodeBlock lang="bash" label="install" code={section.install} />
+                  </div>
+                )}
               </div>
               <div className="space-y-3">
                 {section.blocks.map((b) => (

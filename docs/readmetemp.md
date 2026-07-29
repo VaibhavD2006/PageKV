@@ -133,7 +133,7 @@ retriever = PageKVRetriever.from_index(index, embed_fn, top_k=5)
 retriever = PageKVRetriever.from_documents(lc_docs, embed_fn)
 ```
 
-### LlamaIndex integration
+### LlamaIndex integration (`pip install pagekv[llamaindex]`)
 
 ```python
 from llama_index.core import SimpleDirectoryReader

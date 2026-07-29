@@ -1,122 +1,24 @@
 # PageKV
 
-Page-local compact key summaries for efficient long-context LLM decoding.
+Page-local compact key summaries for efficient long-context LLM decoding — plus a standalone semantic search index.
 
 > KV cache memory grows linearly with context length. PageKV groups tokens into pages, summarizes each page into a single compact vector, and routes attention to only the most relevant pages — cutting memory and latency at long context with a small, measured accuracy tradeoff.
-
----
-
-## The Problem
-
-Every time a transformer generates a token, it runs **attention**: the new token's query vector is compared against every key vector ever seen in the context. Both the memory cost (storing all those K/V pairs) and the compute cost (all those dot products) scale **linearly with context length**.
-
-At 100K tokens you're doing 100K dot products and holding 100K key+value vectors in GPU VRAM on every single decode step, for every layer, for every head. That's why long-context inference is memory-bound, not compute-bound — the GPU is mostly waiting for data.
-
----
-
-## How PageKV Solves It
-
-Most of those 100K tokens are irrelevant to the current query. PageKV exploits this in four steps:
-
-### Step 1 — Paging
-Group the KV cache into fixed-size pages (e.g. 128 tokens/page). A 100K-token context becomes ~781 pages.
-
-```
-[tok_0 ... tok_127]   → page_0
-[tok_128 ... tok_255] → page_1
-...
-[tok_99968 ... tok_99999] → page_780
-```
-
-### Step 2 — Summarise
-Compress each page to a single vector by averaging the key vectors (mean pool). The optional learned summarizer (Phase 2) trains a small MLP to do this better.
-
-```
-page_0 keys [128, head_dim] → summary_0 [head_dim]
-page_1 keys [128, head_dim] → summary_1 [head_dim]
-...
-781 pages → 781 summary vectors  (always resident in GPU VRAM — tiny)
-```
-
-### Step 3 — Route
-Dot-product the current query against all 781 summaries. Pick the top-K highest-scoring pages.
-
-```
-query · summary_0   = 0.12
-query · summary_1   = 0.87  ← selected
-query · summary_780 = 0.91  ← selected
-...
-top-4 pages: [1, 203, 417, 780]
-```
-
-### Step 4 — Attend
-Load only those 4 pages' raw K/V tensors (4 × 128 = 512 tokens instead of 100K). Run full attention over just 512 tokens.
-
-```
-Full attention over 512 tokens  instead of  100,000
-```
-
-### The Tradeoff
-You're making an approximation — if the router picks the wrong pages you miss relevant tokens. The correctness tests verify that at `top_k_pages = total_pages` the output is **numerically identical** to vanilla attention. Only the top-K truncation introduces approximation, and that is the intended, measured tradeoff.
-
----
-
-## How the HuggingFace Patch Works
-
-```python
-# PageKV registers its attention function:
-ALL_ATTENTION_FUNCTIONS["pagekv"] = pagekv_attn_fn
-
-# Then redirects every attention layer:
-model.config._attn_implementation = "pagekv"
-```
-
-Inside every attention layer's `forward()` HuggingFace dispatches:
-
-```python
-attn_output = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation](
-    self, query, key, value, ...
-)
-```
-
-By inserting "pagekv" into that registry, every layer calls `paged_attention_forward` instead of vanilla SDPA. No weights change. No retraining. The model doesn't know anything happened.
-
----
-
-## Results
-
-*(Run `pagekv-bench --device cuda --ctx-lens 4096 16384 32768 --model <your-model>` to populate — embed chart and table here once real numbers exist.)*
-
-| Context Length | Config  | Peak Memory (GB) | Latency (ms/tok) | Needle Accuracy |
-|----------------|---------|-----------------|------------------|----------------|
-| 32K            | Vanilla | —               | —                | —              |
-| 32K            | PageKV  | —               | —                | —              |
-
-![benchmark chart](pagekv/benchmarks/output/memory_vs_context.png)
-
----
 
 ## Install
 
 ```bash
-# Core library
 pip install pagekv
-
-# With Gradio demo
-pip install "pagekv[demo]"
-
-# With vLLM backend
-pip install "pagekv[vllm]"
-
-# Development
-pip install "pagekv[dev]"
 ```
 
----
+LlamaIndex integration (optional — large dependency):
+
+```bash
+pip install pagekv[llamaindex]
+```
 
 ## Usage
 
-### HuggingFace (drop-in)
+### Patch a HuggingFace model
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -130,103 +32,96 @@ patch_model(model, page_size=128, top_k_pages=4)
 # use model.generate(...) as normal — PageKV runs transparently
 ```
 
-### Swap summarizer
+### pagekv.Index — standalone semantic search
+
+`pagekv.Index` is a two-stage retrieval index that runs in-process with no external dependencies. Bring your own embeddings — any model works.
 
 ```python
-from pagekv import patch_model, LearnedSummarizer
+import numpy as np
+from pagekv import Index, SearchResult
 
-patch_model(model, page_size=128, top_k_pages=4, summarizer_cls=LearnedSummarizer)
+embeddings = np.load("embeddings.npy")   # [N, D] float32
+texts = open("chunks.txt").read().splitlines()
+
+index = Index.from_embeddings(embeddings, texts, page_size=128, top_k_pages=4)
+
+query_emb = embed_model("What is attention?")   # [D] float32
+results: list[SearchResult] = index.search(query_emb, top_k=5)
+
+for r in results:
+    print(f"[{r.score:.3f}] {r.text[:80]}")
+
+# Save / load (no pickle)
+index.save("my_index.npz")
+loaded = Index.load("my_index.npz")
 ```
 
-### Two-level (hierarchical) routing
+`SearchResult` fields: `text: str`, `score: float`, `chunk_id: int`, `page_id: int`
+
+### With sentence-transformers
 
 ```python
-from pagekv import patch_model
-from pagekv.core.router import HierarchicalPageRouter
-from pagekv.integrations.hf_patch import patch_model
+from pagekv import Index
+from pagekv.embed import SentenceTransformerEmbedder
 
-# patch_model uses PageRouter by default; for hierarchical routing
-# instantiate directly in attention.py or subclass hf_patch
+embedder = SentenceTransformerEmbedder("all-MiniLM-L6-v2")
+texts = ["Paris is the capital of France.", "PyTorch is a deep learning library."]
+
+index = Index.from_embeddings(embedder.embed(texts), texts, page_size=2)
+results = index.search(embedder.embed_one("capital of France"), top_k=1)
+print(results[0].text)
 ```
 
-### vLLM
+### LangChain integration
+
+```python
+from langchain_openai import OpenAIEmbeddings
+from pagekv.integrations.langchain_retriever import PageKVRetriever
+
+retriever = PageKVRetriever.from_texts(
+    texts=my_chunks,
+    embedding_function=OpenAIEmbeddings().embed_documents,
+    page_size=128,
+    top_k_pages=4,
+    top_k=10,
+)
+
+docs = retriever.get_relevant_documents("explain attention mechanisms")
+```
+
+### LlamaIndex integration
 
 ```bash
-VLLM_ATTENTION_BACKEND=pagekv python your_vllm_server.py
+pip install pagekv[llamaindex]
 ```
 
----
+```python
+from llama_index.core.node_parser import SentenceSplitter
+from pagekv.integrations.llamaindex_retriever import PageKVNodeRetriever
 
-## Run benchmarks
+nodes = SentenceSplitter(chunk_size=512).get_nodes_from_documents(docs)
 
-```bash
-# CPU smoke-test (short context, no GPU needed)
-pagekv-bench --device cpu --ctx-lens 256 512 1024 --model gpt2
+retriever = PageKVNodeRetriever.from_nodes(
+    nodes=nodes,
+    embed_model=embed_model,
+    page_size=128,
+    top_k_pages=4,
+    top_k=10,
+)
 
-# GPU full benchmark (requires model with long context support)
-pagekv-bench --device cuda --ctx-lens 4096 16384 32768 --model mistralai/Mistral-7B-v0.1
+results = retriever.retrieve("explain self-attention")
 ```
 
-Outputs `pagekv/benchmarks/output/results.csv` and `memory_vs_context.png`.
+## How it works
 
----
+Attention over page summaries picks the top-K relevant pages, then full attention runs only within those pages instead of over the entire cache. The same two-stage routing powers both `patch_model` and `pagekv.Index`.
 
-## Gradio demo
-
-```bash
-python demo/app.py           # local at localhost:7860
-python demo/app.py --share   # public Gradio link
-```
-
-Paste a long document, adjust page size and top-K, compare vanilla vs PageKV output and timing side by side.
-
----
-
-## Testing
-
-```bash
-pytest pagekv/tests/ -v
-```
-
-20 tests across Phase 1 and Phase 2. The critical invariant: `test_full_pages_match_vanilla` — at `top_k = total_pages` the paged output must match vanilla attention within `1e-4`. If this fails, do not trust any benchmark numbers.
-
----
-
-## Architecture
-
-```
-pagekv/
-├── core/
-│   ├── paging.py        paginate_tensor — splits [B,H,S,D] into pages
-│   ├── summarizer.py    BaseSummarizer, MeanPool, MaxPool, LearnedSummarizer
-│   ├── router.py        PageRouter (flat), HierarchicalPageRouter (two-level)
-│   └── attention.py     paged_attention_forward — orchestrates steps 1-4
-├── integrations/
-│   ├── hf_patch.py      patch_model — injects pagekv into HF attention dispatch
-│   └── vllm_backend.py  PageKVAttentionBackend — vLLM plugin
-├── memory/
-│   └── tiering.py       PageCache — LRU GPU-hot / CPU-cold KV page cache
-├── benchmarks/
-│   ├── needle_in_haystack.py   retrieval accuracy measurement
-│   ├── memory_profile.py       peak GPU memory + decode latency
-│   └── run_all.py              matrix orchestrator → CSV + chart
-├── demo/
-│   └── app.py           Gradio UI — paste text, compare vanilla vs PageKV
-└── tests/
-    ├── test_correctness.py    Phase 1 — paging, routing, HF patch
-    └── test_phase2.py         Phase 2 — learned summarizer, hierarchical router, tiering
-```
-
-### Phase summary
-
-| Phase | Deliverables |
-|---|---|
-| 1 ✅ | HF patch, mean/max pool, flat routing, benchmarks, correctness tests |
-| 2 ✅ | Trainable MLP summarizer, LRU CPU/GPU tiering, two-level hierarchical routing |
-| 3 ✅ | vLLM backend plugin, Gradio demo, pip packaging (classifiers, entry points, extras) |
-
----
+See `ARCHITECTURE.md` for the full design.
 
 ## Status
 
-All three phases implemented. GPU benchmark numbers pending — see `docs/prd.md` for success metrics (≥30% memory reduction, ≤5% accuracy drop at 32K+ tokens).
+Early-stage MVP. Contributions and issues welcome.
+
+## License
+
+MIT
