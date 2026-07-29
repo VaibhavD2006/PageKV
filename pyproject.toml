@@ -23,13 +23,12 @@ classifiers = [
 dependencies = [
     "torch>=2.0",
     "transformers>=4.35",
-    "matplotlib",
     "sentence-transformers>=2.2",
     "langchain-core>=0.1",
 ]
 
 [project.optional-dependencies]
-dev        = ["pytest", "pytest-cov"]
+dev        = ["pytest", "pytest-cov", "matplotlib"]
 demo       = ["gradio>=4.0"]
 vllm       = ["vllm>=0.4.0"]
 llamaindex = ["llama-index-core>=0.10"]

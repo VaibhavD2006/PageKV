@@ -116,7 +116,7 @@ results = retriever.retrieve("explain self-attention")
 
 Attention over page summaries picks the top-K relevant pages, then full attention runs only within those pages instead of over the entire cache. The same two-stage routing powers both `patch_model` and `pagekv.Index`.
 
-See `ARCHITECTURE.md` for the full design.
+See [`docs/arch.md`](docs/arch.md) for the full design.
 
 ## Status
 

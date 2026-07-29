@@ -95,7 +95,7 @@ class Index:
 
     @classmethod
     def load(cls, path):
-        data = np.load(path)
+        data = np.load(path, allow_pickle=False)
         texts = json.loads(data["texts_json"].tobytes().decode("utf-8"))
         idx = cls.__new__(cls)
         idx._embeddings = torch.from_numpy(data["embeddings"].copy()).float()

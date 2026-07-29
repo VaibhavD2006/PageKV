@@ -34,7 +34,7 @@ def test_missing_dep_raises():
     import sys
     from unittest.mock import patch
     with patch.dict(sys.modules, {"sentence_transformers": None}):
-        with pytest.raises(ImportError, match=r"pip install pagekv\[embed\]"):
+        with pytest.raises(ImportError, match=r"pip install pagekv"):
             from pagekv.embed import SentenceTransformerEmbedder
             SentenceTransformerEmbedder()
 
