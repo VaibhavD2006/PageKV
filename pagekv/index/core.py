@@ -11,6 +11,7 @@ class Index:
             raise ValueError(f"embeddings has {embeddings.shape[0]} rows but texts has {len(texts)} entries")
         if page_size <= 0: raise ValueError(f"page_size must be positive, got {page_size}")
         if top_k_pages <= 0: raise ValueError(f"top_k_pages must be positive, got {top_k_pages}")
+        if len(texts) == 0: raise ValueError("Index requires at least one embedding")
         self._embeddings = embeddings.float()
         self._texts = list(texts)
         self._page_size = page_size
@@ -60,6 +61,8 @@ class Index:
             dtype=torch.float32,
         )
         if emb.dim() == 1: emb = emb.unsqueeze(0)
+        if emb.shape[0] != 1:
+            raise ValueError(f"add() expects a single embedding (shape [D] or [1,D]), got shape {tuple(emb.shape)}")
         self._embeddings = torch.cat([self._embeddings, emb], dim=0)
         self._texts.append(text)
         self._n = len(self._texts)
@@ -102,6 +105,10 @@ class Index:
         idx._n = len(texts)
         idx._n_pages = math.ceil(idx._n / idx._page_size)
         idx._page_summaries = torch.from_numpy(data["page_summaries"].copy()).float()
+        if idx._embeddings.shape[0] != idx._n:
+            raise ValueError(f"Corrupted index: embeddings has {idx._embeddings.shape[0]} rows but texts has {idx._n} entries")
+        if idx._page_summaries.shape[0] != idx._n_pages:
+            raise ValueError(f"Corrupted index: page_summaries has {idx._page_summaries.shape[0]} pages but expected {idx._n_pages}")
         return idx
 
     def _build_summaries(self):

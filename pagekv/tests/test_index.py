@@ -115,3 +115,22 @@ def test_repr():
 def test_top_level_import():
     import pagekv
     assert hasattr(pagekv, "Index") and hasattr(pagekv, "SearchResult")
+
+def test_empty_index_raises():
+    with pytest.raises(ValueError):
+        Index.from_embeddings(np.zeros((0, DIM), dtype=np.float32), [])
+
+def test_add_2d_batch_raises():
+    idx = Index.from_embeddings(_e(n=5), _t(n=5))
+    with pytest.raises(ValueError):
+        idx.add(np.random.randn(2, DIM).astype(np.float32), "text")
+
+def test_add_batch_searchable():
+    idx = Index.from_embeddings(_e(n=10), _t(n=10), page_size=5, top_k_pages=2)
+    target = np.ones(DIM, dtype=np.float32)
+    idx.add_batch(
+        np.stack([target, np.zeros(DIM, dtype=np.float32)]),
+        ["target chunk", "zero chunk"],
+    )
+    results = idx.search(target, top_k=1)
+    assert results[0].text == "target chunk"
