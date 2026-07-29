@@ -14,3 +14,13 @@ web/out/
 
 # Playwright test artifacts
 .playwright-mcp/
+
+# Claude Code internal state
+.claude/
+
+# Screenshot verification artifacts (root-level)
+benchmarks-check.png
+benchmarks-live.png
+hero-check.png
+hero-desktop.png
+hero-top.png
