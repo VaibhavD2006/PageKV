@@ -159,16 +159,15 @@ export default function Hero() {
         </motion.div>
 
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-3 mt-2">
-          <button
-            onClick={() => navigator.clipboard?.writeText("pip install pagekv")}
-            className="font-mono text-sm px-6 py-3 min-h-[44px] transition-colors cursor-pointer font-medium"
+          <a
+            href="#docs"
+            className="font-mono text-sm px-6 py-3 min-h-[44px] transition-colors font-medium flex items-center justify-center"
             style={{ backgroundColor: "var(--gold)", color: "var(--void)", borderRadius: "2px" }}
             onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "var(--gold-bright)")}
             onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "var(--gold)")}
-            aria-label="Copy install command: pip install pagekv"
           >
-            pip install pagekv
-          </button>
+            View Documentation
+          </a>
           <a
             href="https://github.com/VaibhavD2006/PageKV"
             target="_blank"
