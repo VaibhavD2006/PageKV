@@ -28,7 +28,7 @@ export default function Nav() {
           PageKV
         </span>
         <div className="flex items-center gap-6">
-          <a href="#how-it-works" className="text-paper-muted hover:text-paper text-sm transition-colors hidden sm:block">
+          <a href="#docs" className="text-paper-muted hover:text-paper text-sm transition-colors hidden sm:block">
             Docs
           </a>
           <a href="#usage" className="text-paper-muted hover:text-paper text-sm transition-colors hidden sm:block">

@@ -27,16 +27,15 @@ export default function Quickstart() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <button
-            onClick={copy}
-            aria-label="Copy pip install pagekv"
-            className="font-mono text-base px-8 py-3.5 min-h-[48px] transition-colors cursor-pointer"
+          <a
+            href="#docs"
+            className="font-mono text-base px-8 py-3.5 min-h-[48px] transition-colors flex items-center justify-center"
             style={{ backgroundColor: "var(--gold)", color: "var(--void)", borderRadius: "2px" }}
             onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "var(--gold-bright)")}
             onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "var(--gold)")}
           >
-            {copied ? "✓ copied" : "pip install pagekv"}
-          </button>
+            View Docs
+          </a>
           <a
             href="https://github.com/VaibhavD2006/PageKV"
             target="_blank"
@@ -52,7 +51,7 @@ export default function Quickstart() {
               (e.currentTarget as HTMLElement).style.color = "var(--paper-muted)";
             }}
           >
-            Full docs on GitHub →
+            View on GitHub →
           </a>
         </div>
       </div>

@@ -5,6 +5,7 @@ import HowItWorks from "@/components/HowItWorks";
 import Benchmarks from "@/components/Benchmarks";
 import UsageShowcase from "@/components/UsageShowcase";
 import InteractiveDemo from "@/components/InteractiveDemo";
+import Docs from "@/components/Docs";
 import Quickstart from "@/components/Quickstart";
 import Footer from "@/components/Footer";
 import SectionDivider from "@/components/SectionDivider";
@@ -25,6 +26,8 @@ export default function Home() {
         <UsageShowcase />
         <div className="mx-auto max-w-content px-6"><SectionDivider /></div>
         <InteractiveDemo />
+        <div className="mx-auto max-w-content px-6"><SectionDivider /></div>
+        <Docs />
         <div className="mx-auto max-w-content px-6"><SectionDivider /></div>
         <Quickstart />
       </main>
