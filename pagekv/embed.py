@@ -1,6 +1,4 @@
-"""Optional embedding utilities for pagekv.
-
-Install with: pip install pagekv[embed]
+"""Embedding utilities for pagekv.
 
 Provides a thin wrapper around sentence-transformers so users can go
 from raw text to a searchable Index in one step.
@@ -30,7 +28,7 @@ class SentenceTransformerEmbedder:
         except ImportError as exc:
             raise ImportError(
                 "SentenceTransformerEmbedder requires sentence-transformers. "
-                "Install with: pip install pagekv[embed]"
+                "Install with: pip install pagekv"
             ) from exc
         self._model = SentenceTransformer(model_name)
         self._model_name = model_name

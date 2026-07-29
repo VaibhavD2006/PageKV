@@ -1,7 +1,4 @@
-"""LangChain BaseRetriever adapter for pagekv.Index.
-
-Install with: pip install pagekv[langchain]
-"""
+"""LangChain BaseRetriever adapter for pagekv.Index."""
 from __future__ import annotations
 from typing import Any, Callable, List
 import numpy as np
@@ -17,7 +14,7 @@ def _lazy_langchain():
     except ImportError as exc:
         raise ImportError(
             "LangChain integration requires langchain-core. "
-            "Install with: pip install pagekv[langchain]"
+            "Install with: pip install pagekv"
         ) from exc
 
 

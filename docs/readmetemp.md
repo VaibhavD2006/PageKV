@@ -32,14 +32,6 @@ table here. Do not publish this README until real numbers exist.)*
 pip install pagekv
 ```
 
-Optional extras:
-
-```bash
-pip install pagekv[embed]      # sentence-transformers embedder
-pip install pagekv[langchain]  # LangChain BaseRetriever adapter
-pip install pagekv[llamaindex] # LlamaIndex BaseRetriever adapter
-```
-
 ## Usage
 
 ### Patch a HuggingFace model
@@ -98,7 +90,7 @@ index.add(embedding, text)                    # one chunk
 index.add_batch(embeddings_array, texts_list) # many at once
 ```
 
-### With sentence-transformers (`pagekv[embed]`)
+### With sentence-transformers
 
 ```python
 from pagekv import Index
@@ -112,10 +104,9 @@ results = index.search(embedder.embed_one("capital of France"), top_k=1)
 print(results[0].text)
 ```
 
-`SentenceTransformerEmbedder` satisfies the `embedding_function` protocol
-(`list[str] → list[list[float]]`) expected by the LangChain adapter.
+`SentenceTransformerEmbedder` satisfies the `embedding_function` protocol (`list[str] → list[list[float]]`) expected by the LangChain adapter.
 
-### LangChain integration (`pagekv[langchain]`)
+### LangChain integration
 
 ```python
 from langchain_openai import OpenAIEmbeddings
@@ -142,7 +133,7 @@ retriever = PageKVRetriever.from_index(index, embed_fn, top_k=5)
 retriever = PageKVRetriever.from_documents(lc_docs, embed_fn)
 ```
 
-### LlamaIndex integration (`pagekv[llamaindex]`)
+### LlamaIndex integration
 
 ```python
 from llama_index.core import SimpleDirectoryReader

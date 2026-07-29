@@ -1,7 +1,4 @@
-"""LlamaIndex BaseRetriever adapter for pagekv.Index.
-
-Install with: pip install pagekv[llamaindex]
-"""
+"""LlamaIndex BaseRetriever adapter for pagekv.Index."""
 from __future__ import annotations
 from typing import Any, List
 import numpy as np
@@ -16,7 +13,7 @@ def _lazy_llama():
     except ImportError as exc:
         raise ImportError(
             "LlamaIndex integration requires llama-index-core. "
-            "Install with: pip install pagekv[llamaindex]"
+            "Install with: pip install pagekv"
         ) from exc
 
 

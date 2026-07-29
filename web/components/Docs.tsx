@@ -54,7 +54,7 @@ const sections = [
     title: "Standalone semantic search",
     description:
       "pagekv.Index gives you a fast two-stage retrieval index with no external dependencies. Bring your own embeddings — any model works.",
-    install: "pip install pagekv",
+    install: null,
     blocks: [
       {
         lang: "python",
@@ -89,8 +89,8 @@ loaded = Index.load("my_index.npz")`,
     id: "docs-embed",
     title: "With sentence-transformers",
     description:
-      "Install the optional embed extra to go from raw text to a searchable index in one step using any sentence-transformers model.",
-    install: "pip install pagekv[embed]",
+      "Go from raw text to a searchable index in one step using any sentence-transformers model — included with pagekv.",
+    install: null,
     blocks: [
       {
         lang: "python",
@@ -120,7 +120,7 @@ print(results[0].text)  # → "The capital of France is Paris."`,
     title: "LangChain retriever",
     description:
       "Drop PageKV into any LangChain RAG pipeline. PageKVRetriever wraps pagekv.Index and returns standard LangChain Document objects.",
-    install: "pip install pagekv[langchain]",
+    install: null,
     blocks: [
       {
         lang: "python",
@@ -153,7 +153,7 @@ retriever = PageKVRetriever.from_index(index, embed_fn, top_k=5)`,
     title: "LlamaIndex retriever",
     description:
       "Use PageKVNodeRetriever inside any LlamaIndex query engine. It returns NodeWithScore objects compatible with the full LlamaIndex ecosystem.",
-    install: "pip install pagekv[llamaindex]",
+    install: null,
     blocks: [
       {
         lang: "python",
@@ -198,10 +198,13 @@ export default function Docs() {
           >
             Integrate pagekv.Index into your project.
           </h2>
-          <p className="text-base max-w-2xl" style={{ color: "var(--paper-muted)" }}>
+          <p className="text-base max-w-2xl mb-6" style={{ color: "var(--paper-muted)" }}>
             pagekv.Index is a standalone semantic search engine — no server, no cloud, no Dockerfile. Runs in your
             Python process alongside your existing RAG stack.
           </p>
+          <div className="inline-block">
+            <CodeBlock lang="bash" label="install" code="pip install pagekv" />
+          </div>
         </div>
 
         <div className="space-y-16">
@@ -214,12 +217,9 @@ export default function Docs() {
                 >
                   {section.title}
                 </h3>
-                <p className="text-sm mb-3" style={{ color: "var(--paper-muted)" }}>
+                <p className="text-sm" style={{ color: "var(--paper-muted)" }}>
                   {section.description}
                 </p>
-                <div className="inline-block">
-                  <CodeBlock lang="bash" label="install" code={section.install} />
-                </div>
               </div>
               <div className="space-y-3">
                 {section.blocks.map((b) => (
