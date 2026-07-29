@@ -1,6 +1,5 @@
-"use client";
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+﻿"use client";
+import { motion } from "framer-motion";
 
 const steps = [
   {
@@ -61,32 +60,41 @@ const steps = [
 ];
 
 export default function HowItWorks() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-
   return (
     <section id="how-it-works" className="px-6 py-24">
-      <div className="mx-auto max-w-content" ref={ref}>
-        <div className="mb-12">
+      <div className="mx-auto max-w-content">
+        <motion.div
+          className="mb-12"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        >
           <div className="font-mono text-xs tracking-widest uppercase mb-3" style={{ color: "var(--paper-muted)" }}>
             The Mechanism
           </div>
           <h2
             className="font-display text-3xl sm:text-4xl font-bold leading-tight"
-            style={{ fontOpticalSizing: "auto", letterSpacing: "-0.02em" } as React.CSSProperties}
+            style={{ fontOpticalSizing: "auto", letterSpacing: "-0.02em", textWrap: "balance" } as React.CSSProperties}
           >
             Three steps. One pass.
           </h2>
-        </div>
+        </motion.div>
 
         <div className="grid md:grid-cols-3 gap-6">
           {steps.map((step, i) => (
             <motion.div
               key={step.number}
-              initial={{ opacity: 0, y: 24 }}
-              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-              transition={{ duration: 0.5, delay: i * 0.15 }}
-              className="border p-6 flex flex-col gap-4"
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.5, delay: i * 0.12, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{
+                boxShadow: "0 0 24px 0 rgba(201,162,39,0.1)",
+                borderColor: "rgba(201,162,39,0.3)",
+                transition: { duration: 0.25 },
+              }}
+              className="border p-6 flex flex-col gap-4 cursor-default"
               style={{ borderColor: "var(--rule)", borderRadius: "2px", backgroundColor: "var(--panel)" }}
             >
               <div className="font-mono text-xs" style={{ color: "var(--gold)" }}>
@@ -106,13 +114,17 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
           className="mt-8 p-4 border font-mono text-sm"
           style={{ borderColor: "var(--rule)", borderRadius: "2px", color: "var(--paper-muted)" }}
         >
           <span style={{ color: "var(--gold)" }}>Correctness guarantee: </span>
           When <code style={{ color: "var(--paper)" }}>top_k_pages</code> equals the total number of pages, PageKV skips routing and runs full attention — output is numerically identical to vanilla within floating-point tolerance (±1e-4).
-        </div>
+        </motion.div>
       </div>
     </section>
   );

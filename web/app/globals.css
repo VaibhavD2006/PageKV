@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -49,4 +49,43 @@ body {
 .font-display {
   font-optical-sizing: auto;
   letter-spacing: -0.02em;
+}
+
+/* ─── Floating animation (hero card) ─── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+/* ─── TBD badge pulse ─── */
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,162,39,0.35); border-color: var(--gold); }
+  50%       { box-shadow: 0 0 0 6px rgba(201,162,39,0);  border-color: var(--gold-bright); }
+}
+.animate-pulse-gold {
+  animation: pulse-gold 2.4s ease-in-out infinite;
+}
+
+/* ─── Hero ambient glow ─── */
+.hero-glow {
+  background: radial-gradient(ellipse 70% 55% at 50% 62%,
+    rgba(201,162,39,0.11) 0%,
+    rgba(201,162,39,0.04) 45%,
+    transparent 70%);
+}
+
+/* ─── Section entry: visible by default; Framer enhances when in view ─── */
+.reveal-ready {
+  will-change: transform, opacity;
+}
+
+/* ─── Reduced motion: strip all custom animations ─── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-gold {
+    animation: none !important;
+  }
 }
