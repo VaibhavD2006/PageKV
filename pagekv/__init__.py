@@ -12,6 +12,7 @@ from pagekv.core.summarizer import (
 )
 from pagekv.memory.tiering import PageCache
 from pagekv.index import Index, SearchResult
+from pagekv.embed import SentenceTransformerEmbedder
 
 __all__ = [
     "patch_model",
@@ -25,4 +26,5 @@ __all__ = [
     "PageCache",
     "Index",
     "SearchResult",
+    "SentenceTransformerEmbedder",
 ]
