@@ -23,7 +23,7 @@ import torch.nn.functional as F
 from pagekv.core.paging import paginate_tensor
 from pagekv.core.attention import _build_page_summaries
 from pagekv.core.summarizer import BaseSummarizer, MeanPoolSummarizer
-from pagekv.core.router import PageRouter
+from pagekv.core.router import PageRouter, DynamicPageRouter
 
 _IMPL_KEY = "pagekv"
 
@@ -144,10 +144,15 @@ def patch_model(
     page_size: int = 128,
     top_k_pages: int = 4,
     summarizer_cls: type[BaseSummarizer] = MeanPoolSummarizer,
+    router: "PageRouter | None" = None,
 ) -> None:
     """Replace HuggingFace attention with PageKV paged attention.
 
     No retraining required. Call once after loading; use model.generate() as normal.
+
+    Pass a custom router to control how pages are selected each decode step:
+        router=DynamicPageRouter(target_pct=0.01)  # 1% of pages, scales with context
+        router=HierarchicalPageRouter(top_k=4)     # O(√n) routing for very long context
     """
     if page_size <= 0:
         raise ValueError(f"page_size must be positive, got {page_size}")
@@ -157,7 +162,8 @@ def patch_model(
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
     summarizer = summarizer_cls()
-    router     = PageRouter(top_k=top_k_pages)
+    if router is None:
+        router = PageRouter(top_k=top_k_pages)
 
     ALL_ATTENTION_FUNCTIONS[_IMPL_KEY] = _make_pagekv_attn_fn(
         page_size, top_k_pages, summarizer, router

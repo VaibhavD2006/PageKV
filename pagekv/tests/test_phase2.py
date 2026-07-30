@@ -6,7 +6,7 @@ import torch
 import pytest
 
 from pagekv.core.summarizer import LearnedSummarizer, train_summarizer
-from pagekv.core.router import PageRouter, HierarchicalPageRouter
+from pagekv.core.router import PageRouter, HierarchicalPageRouter, DynamicPageRouter
 from pagekv.core.attention import paged_attention_forward
 from pagekv.memory.tiering import PageCache
 
@@ -127,3 +127,30 @@ def test_page_cache_fetch_many():
         cache.store(i, torch.ones(4, 8) * i, torch.ones(4, 8) * i)
     keys, vals = cache.fetch_many([0, 1, 2])
     assert keys.shape == (12, 8)
+
+
+# ── DynamicPageRouter ─────────────────────────────────────────────────────────
+
+def test_dynamic_router_scales_with_n_pages():
+    router = DynamicPageRouter(target_pct=0.25, min_top_k=1)
+    q = torch.randn(1, 2, 16)
+    idx_small = router.select_pages(q, torch.randn(1, 2, 8, 16))   # ceil(8*0.25)=2
+    idx_large = router.select_pages(q, torch.randn(1, 2, 32, 16))  # ceil(32*0.25)=8
+    assert idx_small.shape[-1] == 2
+    assert idx_large.shape[-1] == 8
+
+
+def test_dynamic_router_min_top_k_floor():
+    router = DynamicPageRouter(target_pct=0.001, min_top_k=3)
+    q = torch.randn(1, 1, 8)
+    idx = router.select_pages(q, torch.randn(1, 1, 4, 8))  # pct gives 1, min gives 3
+    assert idx.shape[-1] == 3
+
+
+def test_dynamic_router_output_sorted_in_range():
+    router = DynamicPageRouter(target_pct=0.5)
+    q = torch.randn(1, 2, 16)
+    s = torch.randn(1, 2, 20, 16)
+    idx = router.select_pages(q, s)
+    assert (idx >= 0).all() and (idx < 20).all()
+    assert (idx.diff(dim=-1) >= 0).all()

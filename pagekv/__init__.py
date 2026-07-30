@@ -2,7 +2,7 @@
 pagekv — page-local KV cache compression for long-context LLM decoding.
 """
 from pagekv.integrations.hf_patch import patch_model
-from pagekv.core.router import PageRouter, HierarchicalPageRouter
+from pagekv.core.router import PageRouter, HierarchicalPageRouter, DynamicPageRouter
 from pagekv.core.summarizer import (
     BaseSummarizer,
     MeanPoolSummarizer,
@@ -18,6 +18,7 @@ __all__ = [
     "patch_model",
     "PageRouter",
     "HierarchicalPageRouter",
+    "DynamicPageRouter",
     "BaseSummarizer",
     "MeanPoolSummarizer",
     "MaxPoolSummarizer",

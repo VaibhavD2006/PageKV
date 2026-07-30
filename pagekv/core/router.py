@@ -35,6 +35,40 @@ class PageRouter:
         return scores.topk(k, dim=-1).indices.sort(dim=-1).values
 
 
+class DynamicPageRouter:
+    """Percentage-based router: top_k scales with context length.
+
+    Reads a fixed fraction of pages per decode step so recall quality stays
+    roughly constant as context grows — unlike a fixed top_k which covers
+    an ever-shrinking slice of the cache at long context.
+
+    Example: target_pct=0.01 (1%) at 1M tokens → top_k=79 → reads 10,112 tokens.
+    Same config at 100K tokens → top_k=8 → reads 1,024 tokens.
+
+    Args:
+        target_pct: fraction of pages to attend per step, in (0, 1]. 0.01 = 1%.
+        min_top_k: floor so very short contexts still attend at least this many pages.
+    """
+
+    def __init__(self, target_pct: float = 0.01, min_top_k: int = 1) -> None:
+        if not 0 < target_pct <= 1:
+            raise ValueError(f"target_pct must be in (0, 1], got {target_pct}")
+        if min_top_k < 1:
+            raise ValueError(f"min_top_k must be >= 1, got {min_top_k}")
+        self.target_pct = target_pct
+        self.min_top_k = min_top_k
+
+    def select_pages(
+        self,
+        query: torch.Tensor,           # [B, H, D]
+        page_summaries: torch.Tensor,  # [B, H, n_pages, D]
+    ) -> torch.Tensor:                 # [B, H, k]  sorted ascending
+        n_pages = page_summaries.shape[-2]
+        k = min(max(self.min_top_k, math.ceil(n_pages * self.target_pct)), n_pages)
+        scores = torch.einsum("bhd,bhpd->bhp", query, page_summaries)
+        return scores.topk(k, dim=-1).indices.sort(dim=-1).values
+
+
 class HierarchicalPageRouter:
     """Two-level router: group pages into super-pages, route top-level first.
 

@@ -112,6 +112,37 @@ retriever = PageKVNodeRetriever.from_nodes(
 results = retriever.retrieve("explain self-attention")
 ```
 
+### DynamicPageRouter — constant recall quality at any context length
+
+Fixed `top_k` reads the same number of tokens regardless of context size. At 100K tokens `top_k=4` covers 0.5% of the cache — acceptable. At 1M tokens it covers 0.05% — the model may miss relevant pages entirely.
+
+`DynamicPageRouter` fixes this by reading a fixed **percentage** of pages per decode step, so recall quality stays roughly constant as context grows:
+
+```python
+from pagekv import patch_model, DynamicPageRouter
+
+router = DynamicPageRouter(
+    target_pct=0.01,   # read 1% of pages every decode step
+    min_top_k=4,       # always attend at least 4 pages at short context
+)
+patch_model(model, page_size=128, router=router)
+```
+
+What 1% costs at different context lengths (page_size=128):
+
+| Context | Pages | top_k | Tokens read | vs vanilla |
+|---------|-------|-------|------------|------------|
+| 100K | 781 | 8 | 1,024 | ~8x faster |
+| 500K | 3,906 | 40 | 5,120 | ~40x faster |
+| 1M | 7,812 | 79 | 10,112 | ~130x faster |
+
+Compare to fixed `top_k=4` at 1M tokens: 512 tokens = 0.05% of context. `DynamicPageRouter(0.01)` reads 20× more context at the same scale while still being ~130× faster than vanilla.
+
+**Choosing `target_pct`:**
+- `0.005` — fastest, use when speed matters more than recall
+- `0.01` — recommended for most long-context workloads
+- `0.02` — closer to vanilla recall quality, still very fast at 1M+ tokens
+
 ### HierarchicalPageRouter — scaling to very long context
 
 At 1M+ tokens with `page_size=128` you have ~7,800 pages. `PageRouter` scans all of them every decode step — O(n_pages). `HierarchicalPageRouter` adds a second routing level that groups pages into super-pages, cutting the scan to O(√n_pages) while returning the same top-k result.
