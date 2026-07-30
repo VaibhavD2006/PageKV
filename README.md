@@ -112,6 +112,26 @@ retriever = PageKVNodeRetriever.from_nodes(
 results = retriever.retrieve("explain self-attention")
 ```
 
+### HierarchicalPageRouter — scaling to very long context
+
+At 1M+ tokens with `page_size=128` you have ~7,800 pages. `PageRouter` scans all of them every decode step — O(n_pages). `HierarchicalPageRouter` adds a second routing level that groups pages into super-pages, cutting the scan to O(√n_pages) while returning the same top-k result.
+
+```python
+from pagekv import patch_model
+from pagekv.core.router import HierarchicalPageRouter
+
+router = HierarchicalPageRouter(top_k=4, super_page_size=32)
+patch_model(model, page_size=128, top_k_pages=4, router=router)
+```
+
+| | `PageRouter` | `HierarchicalPageRouter` |
+|---|---|---|
+| Routing cost | O(n_pages) | O(√n_pages) |
+| Result quality | baseline | identical at `top_k=total_pages` |
+| Best for | up to ~100K tokens | 100K+ tokens |
+
+`super_page_size=32` at 1M tokens: 7,812 pages → 245 super-pages scanned at level 1, then 32 candidates at level 2.
+
 ## How it works
 
 Attention over page summaries picks the top-K relevant pages, then full attention runs only within those pages instead of over the entire cache. The same two-stage routing powers both `patch_model` and `pagekv.Index`.

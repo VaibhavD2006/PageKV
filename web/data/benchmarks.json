@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "status": "cpu_only",
     "note": "GPU benchmarks pending (no GPU access). CPU timings below are real measurements from the attention kernel microbench."
@@ -22,5 +22,17 @@
     { "ctx": 16384, "vanilla_ms": 4.458, "cached_ms": 1.547, "speedup": 2.88, "pct_read": 3,   "note": "" },
     { "ctx": 32768, "vanilla_ms": 9.226, "cached_ms": 1.249, "speedup": 7.39, "pct_read": 2,   "note": "" }
   ],
+  "top_k_comparison": {
+    "note": "Real measurements: page_size=128, heads=12, head_dim=64, PyTorch CPU. tokens_read is constant regardless of context length.",
+    "k4_tokens_read": 512,
+    "k10_tokens_read": 1280,
+    "rows": [
+      { "ctx": 8192,  "vanilla_ms": 2.75,  "k4_ms": 2.01, "k10_ms": 3.35, "k4_speedup": 1.37, "k10_speedup": 0.82 },
+      { "ctx": 16384, "vanilla_ms": 3.71,  "k4_ms": 0.84, "k10_ms": 1.93, "k4_speedup": 4.44, "k10_speedup": 1.93 },
+      { "ctx": 32768, "vanilla_ms": 8.55,  "k4_ms": 0.67, "k10_ms": 1.74, "k4_speedup": 12.80,"k10_speedup": 4.92 },
+      { "ctx": 65536, "vanilla_ms": 18.03, "k4_ms": 1.17, "k10_ms": 2.48, "k4_speedup": 15.45,"k10_speedup": 7.27 },
+      { "ctx": 131072,"vanilla_ms": 28.45, "k4_ms": 0.87, "k10_ms": 2.22, "k4_speedup": 32.53,"k10_speedup": 12.82}
+    ]
+  },
   "results": []
 }
