@@ -139,9 +139,10 @@ What 1% costs at different context lengths (page_size=128):
 Compare to fixed `top_k=4` at 1M tokens: 512 tokens = 0.05% of context. `DynamicPageRouter(0.01)` reads 20× more context at the same scale while still being ~130× faster than vanilla.
 
 **Choosing `target_pct`:**
-- `0.005` — fastest, use when speed matters more than recall
-- `0.01` — recommended for most long-context workloads
-- `0.02` — closer to vanilla recall quality, still very fast at 1M+ tokens
+- `0.005` — fastest, acceptable for narrow retrieval where the answer is in one location
+- `0.01` — reasonable for speed-critical workloads with clean, focused queries
+- `0.02` — **recommended default above 100K tokens when recall matters**; gives the router enough margin to handle imperfect page summaries
+- `0.03–0.05` — for multi-hop reasoning or queries whose answer spans several sections of the context
 
 ### HierarchicalPageRouter — scaling to very long context
 
