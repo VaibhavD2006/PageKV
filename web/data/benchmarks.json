@@ -1,19 +1,66 @@
 {
   "meta": {
     "status": "cpu_only",
-    "note": "GPU benchmarks pending (no GPU access). CPU timings below are real measurements from the attention kernel microbench."
-  },
-  "cpu_config": {
-    "page_size": 128,
-    "top_k": 4,
-    "heads": 12,
-    "head_dim": 64,
-    "batch": 1,
     "device": "CPU (PyTorch SDPA)",
-    "warmup_runs": 3,
-    "timed_runs": 15,
-    "note": "Cached = summaries pre-built (steady-state decode). page_size=128 top_k=4 are the PageKV defaults."
+    "note": "All timings are real measurements from the attention kernel microbench. GPU benchmarks pending. Methodology: 5 warmup runs, 20 timed runs, mean reported. Tensors: B=1, H=12, head_dim=64, page_size=128. Cached = page summaries pre-built (steady-state decode, not prefill)."
   },
+  "configs": {
+    "vanilla":   { "label": "Vanilla SDPA",         "tokens_per_step": "all",  "pct_formula": "100%"  },
+    "fixed_k4":  { "label": "Fixed top_k=4",        "tokens_per_step": 512,    "pct_formula": "512/T" },
+    "dyn_1pct":  { "label": "Dynamic 1% (min_k=4)", "tokens_per_step": "1%×T", "pct_formula": "~1%"   },
+    "dyn_2pct":  { "label": "Dynamic 2% (min_k=4)", "tokens_per_step": "2%×T", "pct_formula": "~2%"   },
+    "dyn_5pct":  { "label": "Dynamic 5% (min_k=8)", "tokens_per_step": "5%×T", "pct_formula": "~5%",  "recommended": true }
+  },
+  "results": [
+    {
+      "ctx": 8192,   "n_pages": 64,
+      "vanilla_ms": 2.402,
+      "fixed_k4":  { "ms": 2.169,  "speedup": 1.11, "k": 4,   "tokens": 512,   "pct": 6.25  },
+      "dyn_1pct":  { "ms": 1.596,  "speedup": 1.50, "k": 4,   "tokens": 512,   "pct": 6.25  },
+      "dyn_2pct":  { "ms": 2.529,  "speedup": 0.95, "k": 4,   "tokens": 512,   "pct": 6.25  },
+      "dyn_5pct":  { "ms": 2.145,  "speedup": 1.12, "k": 8,   "tokens": 1024,  "pct": 12.50 }
+    },
+    {
+      "ctx": 16384,  "n_pages": 128,
+      "vanilla_ms": 6.186,
+      "fixed_k4":  { "ms": 1.442,  "speedup": 4.29, "k": 4,   "tokens": 512,   "pct": 3.12  },
+      "dyn_1pct":  { "ms": 3.704,  "speedup": 1.67, "k": 4,   "tokens": 512,   "pct": 3.12  },
+      "dyn_2pct":  { "ms": 1.636,  "speedup": 3.78, "k": 4,   "tokens": 512,   "pct": 3.12  },
+      "dyn_5pct":  { "ms": 4.435,  "speedup": 1.39, "k": 8,   "tokens": 1024,  "pct": 6.25  }
+    },
+    {
+      "ctx": 32768,  "n_pages": 256,
+      "vanilla_ms": 11.761,
+      "fixed_k4":  { "ms": 3.165,  "speedup": 3.72, "k": 4,   "tokens": 512,   "pct": 1.56  },
+      "dyn_1pct":  { "ms": 1.515,  "speedup": 7.76, "k": 4,   "tokens": 512,   "pct": 1.56  },
+      "dyn_2pct":  { "ms": 1.957,  "speedup": 6.01, "k": 6,   "tokens": 768,   "pct": 2.34  },
+      "dyn_5pct":  { "ms": 4.399,  "speedup": 2.67, "k": 13,  "tokens": 1664,  "pct": 5.08  }
+    },
+    {
+      "ctx": 65536,  "n_pages": 512,
+      "vanilla_ms": 27.149,
+      "fixed_k4":  { "ms": 2.556,  "speedup": 10.62, "k": 4,  "tokens": 512,   "pct": 0.78  },
+      "dyn_1pct":  { "ms": 2.551,  "speedup": 10.64, "k": 6,  "tokens": 768,   "pct": 1.17  },
+      "dyn_2pct":  { "ms": 4.694,  "speedup": 5.78,  "k": 11, "tokens": 1408,  "pct": 2.15  },
+      "dyn_5pct":  { "ms": 12.582, "speedup": 2.16,  "k": 26, "tokens": 3328,  "pct": 5.08  }
+    },
+    {
+      "ctx": 131072, "n_pages": 1024,
+      "vanilla_ms": 54.111,
+      "fixed_k4":  { "ms": 7.442,  "speedup": 7.27,  "k": 4,  "tokens": 512,   "pct": 0.39  },
+      "dyn_1pct":  { "ms": 4.403,  "speedup": 12.29, "k": 11, "tokens": 1408,  "pct": 1.07  },
+      "dyn_2pct":  { "ms": 11.768, "speedup": 4.60,  "k": 21, "tokens": 2688,  "pct": 2.05  },
+      "dyn_5pct":  { "ms": 20.817, "speedup": 2.60,  "k": 52, "tokens": 6656,  "pct": 5.08  }
+    },
+    {
+      "ctx": 262144, "n_pages": 2048,
+      "vanilla_ms": 106.695,
+      "fixed_k4":  { "ms": 3.900,  "speedup": 27.36, "k": 4,   "tokens": 512,   "pct": 0.20  },
+      "dyn_1pct":  { "ms": 11.444, "speedup": 9.32,  "k": 21,  "tokens": 2688,  "pct": 1.03  },
+      "dyn_2pct":  { "ms": 16.621, "speedup": 6.42,  "k": 41,  "tokens": 5248,  "pct": 2.00  },
+      "dyn_5pct":  { "ms": 37.750, "speedup": 2.83,  "k": 103, "tokens": 13184, "pct": 5.03  }
+    }
+  ],
   "cpu_timing": [
     { "ctx": 1024,  "vanilla_ms": 0.225, "cached_ms": 1.646, "speedup": 0.14, "pct_read": 50,  "note": "fast-path-adjacent" },
     { "ctx": 2048,  "vanilla_ms": 0.626, "cached_ms": 1.689, "speedup": 0.37, "pct_read": 25,  "note": "" },
@@ -23,7 +70,7 @@
     { "ctx": 32768, "vanilla_ms": 9.226, "cached_ms": 1.249, "speedup": 7.39, "pct_read": 2,   "note": "" }
   ],
   "top_k_comparison": {
-    "note": "Real measurements: page_size=128, heads=12, head_dim=64, PyTorch CPU. tokens_read is constant regardless of context length.",
+    "note": "Superseded by full results array above.",
     "k4_tokens_read": 512,
     "k10_tokens_read": 1280,
     "rows": [
@@ -33,6 +80,5 @@
       { "ctx": 65536, "vanilla_ms": 18.03, "k4_ms": 1.17, "k10_ms": 2.48, "k4_speedup": 15.45,"k10_speedup": 7.27 },
       { "ctx": 131072,"vanilla_ms": 28.45, "k4_ms": 0.87, "k10_ms": 2.22, "k4_speedup": 32.53,"k10_speedup": 12.82}
     ]
-  },
-  "results": []
+  }
 }

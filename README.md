@@ -121,28 +121,37 @@ Fixed `top_k` reads the same number of tokens regardless of context size. At 100
 ```python
 from pagekv import patch_model, DynamicPageRouter
 
-router = DynamicPageRouter(
-    target_pct=0.01,   # read 1% of pages every decode step
-    min_top_k=4,       # always attend at least 4 pages at short context
-)
+# Accuracy-first — recommended for 100K+ context
+router = DynamicPageRouter(target_pct=0.05, min_top_k=8)
 patch_model(model, page_size=128, router=router)
 ```
 
-What 1% costs at different context lengths (page_size=128):
+**Real benchmark results** — CPU attention kernel, page_size=128, B=1 H=12 head_dim=64, 5 warmup + 20 timed runs:
 
-| Context | Pages | top_k | Tokens read | vs vanilla |
-|---------|-------|-------|------------|------------|
-| 100K | 781 | 8 | 1,024 | ~8x faster |
-| 500K | 3,906 | 40 | 5,120 | ~40x faster |
-| 1M | 7,812 | 79 | 10,112 | ~130x faster |
+| Context | Vanilla | Fixed k=4 | Dynamic 1% | Dynamic 2% | Dynamic 5% ★ |
+|---------|---------|-----------|-----------|-----------|--------------|
+| 8K   | 2.402ms | 2.169ms (1.11×) | 1.596ms (1.50×) | 2.529ms (0.95×) | 2.145ms (1.12×) |
+| 16K  | 6.186ms | 1.442ms (4.29×) | 3.704ms (1.67×) | 1.636ms (3.78×) | 4.435ms (1.39×) |
+| 32K  | 11.761ms | 3.165ms (3.72×) | 1.515ms (7.76×) | 1.957ms (6.01×) | 4.399ms (2.67×) |
+| 64K  | 27.149ms | 2.556ms (10.62×) | 2.551ms (10.64×) | 4.694ms (5.78×) | 12.582ms (2.16×) |
+| 128K | 54.111ms | 7.442ms (7.27×) | 4.403ms (12.29×) | 11.768ms (4.60×) | 20.817ms (2.60×) |
+| 256K | 106.695ms | 3.900ms (27.36×) | 11.444ms (9.32×) | 16.621ms (6.42×) | 37.750ms (2.83×) |
 
-Compare to fixed `top_k=4` at 1M tokens: 512 tokens = 0.05% of context. `DynamicPageRouter(0.01)` reads 20× more context at the same scale while still being ~130× faster than vanilla.
+**Context coverage per decode step:**
+
+| Context | Fixed k=4 | Dynamic 5% ★ |
+|---------|-----------|--------------|
+| 8K   | 512 tokens (6.25%)  | 1,024 tokens (12.50%) |
+| 64K  | 512 tokens (0.78%)  | 3,328 tokens (5.08%)  |
+| 256K | 512 tokens (0.20%)  | 13,184 tokens (5.03%) |
+
+Fixed `top_k=4` reads 512 tokens always — 6.25% at 8K but only 0.20% at 256K, causing recall to degrade as context grows. Dynamic 5% maintains consistent 5% coverage at every length. GPU benchmarks in progress.
 
 **Choosing `target_pct`:**
-- `0.005` — fastest, acceptable for narrow retrieval where the answer is in one location
-- `0.01` — reasonable for speed-critical workloads with clean, focused queries
-- `0.02` — **recommended default above 100K tokens when recall matters**; gives the router enough margin to handle imperfect page summaries
-- `0.03–0.05` — for multi-hop reasoning or queries whose answer spans several sections of the context
+- `0.01` — speed-first, narrow retrieval where the answer is in one location
+- `0.02` — balanced, good for most long-context workloads
+- `0.05` — **accuracy-first, recommended for 100K+ context** where answers may span multiple sections
+- `0.05–0.10` — multi-hop reasoning where relevant information is spread across the full context
 
 ### HierarchicalPageRouter — scaling to very long context
 
