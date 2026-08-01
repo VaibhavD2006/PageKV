@@ -18,18 +18,41 @@ pip install pagekv[llamaindex]
 
 ## Usage
 
-### Patch a HuggingFace model
+### One-Line Page Reduction (`page_reduce`)
+
+The easiest way to use PageKV. Ask questions over 100K+ token contexts in one line:
 
 ```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from pagekv import patch_model
+from pagekv import page_reduce
+from transformers import AutoModelForCausalLM
+
+model = AutoModelForCausalLM.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
+documents = load_your_large_corpus()  # 100K+ tokens
+
+answer = page_reduce("What are the Mars climate findings?", documents, model)
+print(answer)  # Model reads only 5% of context per step
+```
+
+`page_reduce` automatically chooses the right router (DynamicPageRouter) for your accuracy needs:
+- `accuracy="fast"` — fastest, narrow retrieval
+- `accuracy="balanced"` — recommended default
+- `accuracy="high"` — closest to vanilla recall at 1M+ tokens
+
+### Patch a HuggingFace model (advanced)
+
+For fine-grained control over routing behavior:
+
+```python
+from transformers import AutoModelForCausalLM
+from pagekv import patch_model, DynamicPageRouter
 
 model = AutoModelForCausalLM.from_pretrained("MODEL_NAME")
-tokenizer = AutoTokenizer.from_pretrained("MODEL_NAME")
 
-patch_model(model, page_size=128, top_k_pages=4)
+# Always read 5% of pages at every decode step
+router = DynamicPageRouter(target_pct=0.05, min_top_k=8)
+patch_model(model, page_size=128, router=router)
 
-# use model.generate(...) as normal — PageKV runs transparently
+# use model.generate(...) as normal
 ```
 
 ### pagekv.Index — standalone semantic search
@@ -89,7 +112,7 @@ retriever = PageKVRetriever.from_texts(
 docs = retriever.get_relevant_documents("explain attention mechanisms")
 ```
 
-### LlamaIndex integration
+### LlamaIndex integration (optional)
 
 ```bash
 pip install pagekv[llamaindex]
