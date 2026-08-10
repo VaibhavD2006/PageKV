@@ -45,6 +45,44 @@ patch_model(model, page_size=128, top_k_pages=4)
 # model now uses paged attention — generation API unchanged
 outputs = model.generate(input_ids, max_new_tokens=256)`,
   },
+  {
+    lang: "python",
+    label: "Routing diagnostics — see where retrieval breaks",
+    code: `from pagekv import Index
+
+index = Index.from_embeddings(embeddings, texts, page_size=8, top_k_pages=4)
+
+diag = index.search_with_diagnostics(query_emb, top_k=5)
+
+# Which pages did the router select?
+print(diag.pages_selected)        # e.g. [0, 2]
+
+# Score for every page — did the relevant page rank high?
+print(diag.page_scores)           # list[float], one per page
+
+# Separate router failure from within-page failure
+gold_page = gold_chunk_id // 8
+router_miss = gold_page not in diag.pages_selected   # stage 1
+chunk_miss  = gold_chunk_id not in [r.chunk_id for r in diag.results]  # stage 2`,
+  },
+  {
+    lang: "python",
+    label: "ConceptMap — bridge vocabulary gaps",
+    code: `from pagekv import ConceptMap
+
+# Register domain equivalences once
+cm = ConceptMap({
+    "southern summer": ["solar longitude 180", "Ls 180-360", "aphelion season"],
+    "slope streak":    ["RSL", "recurring slope lineae", "dark streak"],
+})
+cm.save("domain_concepts.json")   # persist alongside dataset
+
+# Expand query to synonyms, embed all, return L2-normalized mean
+expanded_emb = cm.expand_and_embed("southern summer", embed_one)
+
+# Search with the enriched embedding — router now sees technical vocab
+results = index.search(expanded_emb, top_k=5)`,
+  },
 ];
 
 export default function UsageShowcase() {
@@ -59,7 +97,7 @@ export default function UsageShowcase() {
             className="font-display text-3xl sm:text-4xl font-bold leading-tight"
             style={{ fontOpticalSizing: "auto", letterSpacing: "-0.02em" } as React.CSSProperties}
           >
-            Two lines to patch any HuggingFace model.
+            Index, diagnose, expand. Works with any embeddings.
           </h2>
         </div>
 
@@ -98,8 +136,10 @@ export default function UsageShowcase() {
         </div>
 
         <div className="mt-6 font-mono text-xs" style={{ color: "var(--paper-muted)" }}>
-          The generation API is unchanged.{" "}
-          <code style={{ color: "var(--paper)" }}>patch_model</code> replaces the attention forward pass in-place.
+          Generation API unchanged.{" "}
+          <code style={{ color: "var(--paper)" }}>search_with_diagnostics</code> returns the same results as{" "}
+          <code style={{ color: "var(--paper)" }}>search</code> plus full routing state.{" "}
+          <code style={{ color: "var(--paper)" }}>ConceptMap</code> requires no extra dependencies.
         </div>
       </div>
     </section>

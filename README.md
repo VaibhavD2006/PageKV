@@ -55,6 +55,59 @@ patch_model(model, page_size=128, router=router)
 # use model.generate(...) as normal
 ```
 
+### Routing diagnostics
+
+`search_with_diagnostics()` exposes the full intermediate routing state so you can separate router failures from within-page failures:
+
+```python
+diag = index.search_with_diagnostics(query_embedding, top_k=5)
+
+print(diag.pages_selected)       # page indices the router chose
+print(diag.page_scores)          # cosine score for every page (length = n_pages)
+print(diag.candidates_searched)  # chunk IDs that were fine-scored
+print(diag.results)              # same ranked list as .search()
+```
+
+Distinguish two failure modes in evaluation:
+
+```python
+gold_chunk_id = 7
+gold_page = gold_chunk_id // index._page_size
+
+router_miss = gold_page not in diag.pages_selected
+chunk_miss  = gold_chunk_id not in [r.chunk_id for r in diag.results]
+gold_page_score = diag.page_scores[gold_page]
+```
+
+### ConceptMap — vocabulary gap expansion
+
+Bridges the gap between natural-language queries and technical document vocabulary — e.g. "southern summer" vs "solar longitude 180–360°":
+
+```python
+from pagekv import ConceptMap
+
+cm = ConceptMap({
+    "southern summer": ["solar longitude 180", "Ls 180-360", "aphelion season"],
+    "slope streak":    ["RSL", "recurring slope lineae", "dark streak"],
+})
+cm.save("mars_concepts.json")
+cm = ConceptMap.from_json("mars_concepts.json")
+
+# Returns mean L2-normalized embedding across all expansions
+expanded_emb = cm.expand_and_embed("southern summer", embed_one)
+results = index.search(expanded_emb, top_k=5)
+```
+
+Combine with `search_with_diagnostics()` to measure exactly how much vocabulary expansion improves routing scores:
+
+```python
+plain_diag    = index.search_with_diagnostics(embed_one("southern summer"), top_k=5)
+expanded_diag = index.search_with_diagnostics(
+    cm.expand_and_embed("southern summer", embed_one), top_k=5
+)
+# Compare plain_diag.page_scores[gold_page] vs expanded_diag.page_scores[gold_page]
+```
+
 ### pagekv.Index — standalone semantic search
 
 `pagekv.Index` is a two-stage retrieval index that runs in-process with no external dependencies. Bring your own embeddings — any model works.
