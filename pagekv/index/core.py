@@ -55,6 +55,57 @@ class Index:
             for s, i in zip(top_vals.tolist(), top_local.tolist())
         ]
 
+    def search_with_diagnostics(self, query_embedding, top_k: int = 10) -> "DiagnosticResult":
+        from pagekv.index.results import DiagnosticResult
+        q = torch.as_tensor(
+            np.array(query_embedding) if not isinstance(query_embedding, torch.Tensor) else query_embedding,
+            dtype=torch.float32,
+        )
+        if q.dim() == 1:
+            q = q.unsqueeze(0)
+
+        page_scores_t = torch.matmul(q, self._page_summaries.T).squeeze(0)
+        page_scores = page_scores_t.tolist()
+
+        k_pages = min(self._top_k_pages, self._n_pages)
+        top_page_indices = page_scores_t.topk(k_pages).indices.sort().values.tolist()
+
+        candidate_ids: list = []
+        for page_idx in top_page_indices:
+            start = page_idx * self._page_size
+            end = min(start + self._page_size, self._n)
+            candidate_ids.extend(range(start, end))
+
+        if not candidate_ids:
+            return DiagnosticResult(
+                results=[],
+                page_scores=page_scores,
+                pages_selected=top_page_indices,
+                candidates_searched=[],
+            )
+
+        cand_embs = self._embeddings[candidate_ids]
+        fine_scores = torch.matmul(q, cand_embs.T).squeeze(0)
+        k_return = min(top_k, len(candidate_ids))
+        top_vals, top_local = fine_scores.topk(k_return)
+
+        results = [
+            SearchResult(
+                text=self._texts[candidate_ids[i]],
+                score=float(s),
+                chunk_id=candidate_ids[i],
+                page_id=candidate_ids[i] // self._page_size,
+            )
+            for s, i in zip(top_vals.tolist(), top_local.tolist())
+        ]
+
+        return DiagnosticResult(
+            results=results,
+            page_scores=page_scores,
+            pages_selected=top_page_indices,
+            candidates_searched=candidate_ids,
+        )
+
     def add(self, embedding, text):
         emb = torch.as_tensor(
             np.array(embedding) if not isinstance(embedding, torch.Tensor) else embedding,
