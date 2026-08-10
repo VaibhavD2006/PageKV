@@ -72,7 +72,7 @@ Distinguish two failure modes in evaluation:
 
 ```python
 gold_chunk_id = 7
-gold_page = gold_chunk_id // index._page_size
+gold_page = gold_chunk_id // index.page_size
 
 router_miss = gold_page not in diag.pages_selected
 chunk_miss  = gold_chunk_id not in [r.chunk_id for r in diag.results]

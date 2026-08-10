@@ -170,6 +170,14 @@ class Index:
             summaries.append(self._embeddings[start:end].mean(dim=0))
         return torch.stack(summaries)
 
+    @property
+    def page_size(self) -> int:
+        return self._page_size
+
+    @property
+    def n_pages(self) -> int:
+        return self._n_pages
+
     def __len__(self): return self._n
     def __repr__(self):
         return f"Index(n={self._n}, dim={self._embeddings.shape[1]}, n_pages={self._n_pages}, page_size={self._page_size}, top_k_pages={self._top_k_pages})"

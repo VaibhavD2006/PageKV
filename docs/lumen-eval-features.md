@@ -86,7 +86,7 @@ gold_chunk_id = 7   # the chunk that should be returned
 
 diag = index.search_with_diagnostics(query_emb, top_k=5)
 
-gold_page = gold_chunk_id // index._page_size   # which page contains the gold chunk?
+gold_page = gold_chunk_id // index.page_size   # which page contains the gold chunk?
 
 # Stage 1 failure: router didn't select the gold page
 stage1_failed = gold_page not in diag.pages_selected
