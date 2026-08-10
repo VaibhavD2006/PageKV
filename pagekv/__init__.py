@@ -11,9 +11,10 @@ from pagekv.core.summarizer import (
     train_summarizer,
 )
 from pagekv.memory.tiering import PageCache
-from pagekv.index import Index, SearchResult
+from pagekv.index import Index, SearchResult, DiagnosticResult
 from pagekv.embed import SentenceTransformerEmbedder
 from pagekv.api import page_reduce
+from pagekv.concept_map import ConceptMap
 
 __all__ = [
     "patch_model",
@@ -28,6 +29,8 @@ __all__ = [
     "PageCache",
     "Index",
     "SearchResult",
+    "DiagnosticResult",
     "SentenceTransformerEmbedder",
     "page_reduce",
+    "ConceptMap",
 ]

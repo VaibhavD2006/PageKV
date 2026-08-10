@@ -62,3 +62,67 @@ def test_pages_selected_are_sorted():
     q = embs[0]
     diag = index.search_with_diagnostics(q, top_k=3)
     assert diag.pages_selected == sorted(diag.pages_selected)
+
+
+# ── ConceptMap tests ──────────────────────────────────────────────────────────
+
+def test_concept_map_importable():
+    from pagekv import ConceptMap
+    assert ConceptMap is not None
+
+
+def test_concept_map_expand_exact_match():
+    from pagekv import ConceptMap
+    cm = ConceptMap({"southern summer": ["solar longitude 180", "Ls 180"]})
+    expanded = cm.expand("southern summer")
+    assert "southern summer" in expanded
+    assert "solar longitude 180" in expanded
+    assert "Ls 180" in expanded
+
+
+def test_concept_map_expand_case_insensitive():
+    from pagekv import ConceptMap
+    cm = ConceptMap({"Southern Summer": ["solar longitude 180"]})
+    expanded = cm.expand("southern summer")
+    assert "solar longitude 180" in expanded
+
+
+def test_concept_map_expand_no_match_returns_original():
+    from pagekv import ConceptMap
+    cm = ConceptMap({"other term": ["synonym"]})
+    expanded = cm.expand("southern summer")
+    assert expanded == ["southern summer"]
+
+
+def test_concept_map_save_and_load(tmp_path):
+    from pagekv import ConceptMap
+    cm = ConceptMap({"southern summer": ["solar longitude 180", "Ls 180"]})
+    path = str(tmp_path / "seasons.json")
+    cm.save(path)
+    loaded = ConceptMap.from_json(path)
+    assert loaded.expand("southern summer") == cm.expand("southern summer")
+
+
+def test_concept_map_add():
+    from pagekv import ConceptMap
+    cm = ConceptMap()
+    cm.add("northern winter", ["Ls 0", "perihelion"])
+    assert "Ls 0" in cm.expand("northern winter")
+
+
+def test_concept_map_expand_and_embed_returns_vector():
+    from pagekv import ConceptMap
+    import numpy as np
+    cm = ConceptMap({"dust storm": ["tau > 1", "opacity event"]})
+
+    call_log = []
+    def fake_embedder(text: str) -> np.ndarray:
+        call_log.append(text)
+        rng = np.random.default_rng(abs(hash(text)) % (2**31))
+        v = rng.standard_normal(8).astype(np.float32)
+        return v / np.linalg.norm(v)
+
+    emb = cm.expand_and_embed("dust storm", fake_embedder)
+    assert emb.shape == (8,)
+    assert len(call_log) == 3  # original + 2 expansions
+    assert abs(np.linalg.norm(emb) - 1.0) < 1e-5  # L2-normalized
