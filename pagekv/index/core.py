@@ -146,6 +146,9 @@ class Index:
 
     @classmethod
     def load(cls, path):
+        path = Path(path)
+        if not path.exists() and Path(str(path) + ".npz").exists():
+            path = Path(str(path) + ".npz")
         data = np.load(path, allow_pickle=False)
         texts = json.loads(data["texts_json"].tobytes().decode("utf-8"))
         idx = cls.__new__(cls)

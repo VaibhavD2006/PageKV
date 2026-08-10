@@ -94,6 +94,12 @@ def test_save_and_load(tmp_path):
     assert loaded._page_size == 16 and len(loaded) == N and loaded._texts == texts
     assert torch.allclose(loaded._embeddings, idx._embeddings)
 
+def test_load_without_npz_extension(tmp_path):
+    idx = Index.from_embeddings(_e(n=5), _t(n=5))
+    idx.save(tmp_path / "my_index")      # np.savez adds .npz
+    loaded = Index.load(tmp_path / "my_index")   # load() should find my_index.npz
+    assert len(loaded) == 5
+
 def test_save_load_search_consistency(tmp_path):
     embs = _e()
     idx = Index.from_embeddings(embs, _t(), page_size=16, top_k_pages=3)
